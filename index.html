@@ -417,6 +417,11 @@ body{font-size:17px}
 .cv p{margin:0 0 10px;color:var(--ink2)}
 .cv .res{margin:0 0 12px;padding-left:18px;color:var(--ink2)}
 .cv .res li{border:none;padding:2px 0}
+.tour{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:22px 4px;border-bottom:1px solid var(--line)}
+.tour h3{font-size:19px;font-weight:600}
+.tour .sub{color:var(--muted);font-size:14px;margin-top:2px}
+.files{display:flex;gap:8px;flex-wrap:wrap}
+@media (max-width:600px){.tour{flex-direction:column;align-items:flex-start}}
 </style>
 </head>
 <body>
@@ -475,16 +480,16 @@ const OLYMPIADS = {
       {id:"chem-junior", t:"Юниорская олимпиада",      m:"Ю",  lv:"Младшие классы"},
     ]},
     {group:"Международные", items:[
-      {id:"chem-icho",      t:"International Chemistry Olympiad", m:"IChO", lv:"Мир"},
-      {id:"chem-mendeleev", t:"Менделеевская олимпиада",          m:"М",    lv:"Международная"},
+      {id:"chem-icho", from:2013,      t:"International Chemistry Olympiad", m:"IChO", lv:"Мир"},
+      {id:"chem-mendeleev", from:2013, t:"Менделеевская олимпиада",          m:"М",    lv:"Международная"},
       {id:"chem-tuymaada",  t:"Туймаада",                         m:"Т",    lv:"Международная"},
       {id:"chem-biruni",    t:"Международная олимпиада имени Аль-Бируни", m:"АБ", lv:"Международная"},
       {id:"chem-satpaev",   t:"Сатпаевская олимпиада",            m:"С",    lv:"Международная"},
     ]},
     {group:"Другие страны", items:[
-      {id:"chem-vsos",     t:"Всероссийская олимпиада",       m:"ВС",  lv:"Россия · заключительный этап"},
-      {id:"chem-vsos-reg", t:"Всероссийская · региональный этап", m:"РЭ", lv:"Россия"},
-      {id:"chem-vsesib",   t:"Всесибирская олимпиада",        m:"ВСБ", lv:"Россия"},
+      {id:"chem-vsos", from:2013,     t:"Всероссийская олимпиада",       m:"ВС",  lv:"Россия · заключительный этап"},
+      {id:"chem-vsos-reg", from:2013, t:"Всероссийская · региональный этап", m:"РЭ", lv:"Россия"},
+      {id:"chem-vsesib", from:2013,   t:"Всесибирская олимпиада",        m:"ВСБ", lv:"Россия"},
       {id:"chem-belarus",  t:"Белорусская олимпиада",         m:"Б",   lv:"Беларусь"},
       {id:"chem-india",    t:"Индийская национальная олимпиада",  m:"IN", lv:"Индия"},
       {id:"chem-australia",t:"Австралийская олимпиада",         m:"AU",  lv:"Австралия"},
@@ -549,7 +554,7 @@ const PROBLEMS = [
    solution:`<p>[H<sup>+</sup>] = 10<sup>−2</sup> моль/л → pH = <b>2</b>.</p>`},
 ];
 
-// РЕЗУЛЬТАТЫ: RESULTS["id олимпиады"][год] = список участников.
+// РЕЗУЛЬТАТЫ: RESULTS["id олимпиады"]["сезон, напр. 2025-2026"] = список участников.
 // medal: "g" золото, "s" серебро, "b" бронза, "h" похвальная грамота, "" без награды
 // source — ссылка на официальный протокол
 const RESULTS = {};
@@ -633,6 +638,21 @@ const MENTORS = [
 ];
 // Ссылка на анкету для тренеров (например, Google Форма)
 const MENTOR_FORM = "";
+
+/* ================= ФАЙЛЫ ОЛИМПИАД (PDF) ================= */
+// PAPERS["id олимпиады"]["сезон, напр. 2025-2026"][класс] = список туров.
+// Каждый тур: {tour:"1 тур", tasks:"pdf/....pdf", sol:"pdf/....pdf"}  (sol можно не указывать, если решений нет)
+// Пример:
+// PAPERS["chem-resp"] = { "2025-2026": { 9: [ {tour:"1 тур", tasks:"pdf/chem-resp-2025-9-tur1.pdf", sol:"pdf/chem-resp-2025-9-tur1-resh.pdf"} ] } };
+const PAPERS = {};
+// Сезоны: от текущего (2026–2027) назад до from (по умолчанию 2018 → сезон 2018–2019).
+// У олимпиады можно указать from:2013, тогда архив начнётся с сезона 2013–2014.
+const CURRENT_SEASON = 2026;
+const DEFAULT_FROM = 2018;
+function seasonsOf(o){ const out=[]; for(let y=CURRENT_SEASON; y>=(o.from||DEFAULT_FROM); y--) out.push(y+"-"+(y+1)); return out; }
+const seasonLabel = k => k.replace("-","–");
+const PAPER_GRADES = [9,10,11];
+const DEFAULT_TOURS = ["1 тур","2 тур"];
 
 </script>
 <script>
@@ -741,24 +761,54 @@ function tabOlympiads(s){
     g.items.map(o=>`<a class="oc" href="#${o.id}"><span class="mono">${o.m}</span><div><div class="lv">${o.lv}</div><h3>${o.t}</h3></div><span class="arr">→</span></a>`).join("")
   }</div></div>`).join("");
 }
+function subjOfOlymp(o){ return subjById(Object.keys(OLYMPIADS).find(k=>OLYMPIADS[k].some(g=>g.items.includes(o)))); }
+function hasPapers(oid, y){ const p = PAPERS[oid] && PAPERS[oid][y]; return !!(p && Object.values(p).some(t=>t && t.length)); }
 function viewOlympiad(o){
-  const sid = Object.keys(OLYMPIADS).find(k=>OLYMPIADS[k].some(g=>g.items.includes(o)));
-  const s = subjById(sid);
-  const years = [2025,2024,2023,2022,2021];
+  const s = subjOfOlymp(o);
   return `<section class="dark"><div class="wrap shead" style="padding-bottom:64px">
     <div class="crumbs"><a href="#home">Главная</a> &nbsp;/&nbsp; <a href="#${s.id}">${s.t}</a> &nbsp;/&nbsp; Олимпиады</div>
-    <h1 style="font-size:56px">${o.t}</h1><p class="sub">${o.lv} · задания и решения по годам</p>
+    <h1 style="font-size:56px">${o.t}</h1><p class="sub">${o.lv} · выберите учебный год</p>
   </div></section>
   <div class="wrap body">
-    <table class="tbl">
-      <thead><tr><th>Год</th><th>Задания</th><th>Решения</th><th class="hide-m">Результаты</th></tr></thead>
-      <tbody>${years.map(y=>`<tr><td class="y">${y}</td>
-        <td><button class="btn ghost sm" disabled>PDF</button></td>
-        <td><button class="btn ghost sm" disabled>PDF</button></td>
-        <td class="hide-m">${o.noResults?"—":`<a href="#res-${o.id}" style="border-bottom:1px solid var(--line)">Таблица</a>`}</td></tr>`).join("")}</tbody>
-    </table>
-    <p class="note">Файлы появятся, когда добавим PDF с официальных сайтов олимпиад.</p>
+    <div class="olist">${seasonsOf(o).map(y=>`<a class="oc" href="#${o.id}-${y}">
+      <span class="mono" style="width:auto;padding:0 14px;white-space:nowrap">${seasonLabel(y)}</span>
+      <div><div class="lv">${hasPapers(o.id,y)?"Задания и решения":"Скоро"}</div><h3>Сезон ${seasonLabel(y)}</h3></div><span class="arr">→</span></a>`).join("")}</div>
   </div>`;
+}
+let paperGrade = PAPER_GRADES[0];
+function viewOlympYear(o, y){
+  const s = subjOfOlymp(o);
+  return `<section class="dark"><div class="wrap shead" style="padding-bottom:0">
+    <div class="crumbs"><a href="#home">Главная</a> &nbsp;/&nbsp; <a href="#${s.id}">${s.t}</a> &nbsp;/&nbsp; <a href="#${o.id}">${o.t}</a> &nbsp;/&nbsp; ${seasonLabel(y)}</div>
+    <h1 style="font-size:52px">${o.t}</h1><p class="sub" style="margin-top:6px;color:var(--ink);font-weight:600;font-size:22px">Сезон ${seasonLabel(y)}</p><p class="sub">${s.t} · выберите класс</p>
+    <nav class="tabs" id="gtabs">${PAPER_GRADES.map(g=>`<a href="javascript:void 0" data-g="${g}" class="${g===paperGrade?'on':''}">${g} класс</a>`).join("")}</nav>
+  </div></section>
+  <div class="wrap body"><div id="tours"></div>
+    <div style="margin-top:36px;display:flex;gap:10px;flex-wrap:wrap">
+      ${o.noResults?"":`<a class="btn ghost" href="#res-${o.id}">Результаты олимпиады →</a>`}
+      <a class="btn ghost" href="#${s.id}-topics">Задачи по темам →</a>
+    </div>
+  </div>`;
+}
+function renderTours(o, y){
+  const real = PAPERS[o.id] && PAPERS[o.id][y] && PAPERS[o.id][y][paperGrade];
+  const tours = (real && real.length) ? real : DEFAULT_TOURS.map(t=>({tour:t}));
+  const btn = (href, label) => href ? `<a class="btn sm" href="${href}" target="_blank" rel="noopener">${label}</a>` : `<span class="btn ghost sm" style="opacity:.45;cursor:default">${label}</span>`;
+  $("#tours").innerHTML = `<div class="rows" style="border-top:1px solid var(--ink)">${tours.map(t=>`
+    <div class="tour">
+      <div><h3>${t.tour}</h3><div class="sub">${paperGrade} класс · ${t.tasks?"":"файлы скоро"}</div></div>
+      <div class="files">${btn(t.tasks,"Задания PDF")}${btn(t.sol,"Решения PDF")}</div>
+    </div>`).join("")}</div>
+    ${real && real.length ? "" : `<p class="note">Файлы за сезон ${seasonLabel(y)} появятся, когда добавим PDF с официальных сайтов.</p>`}`;
+}
+function bindOlympYear(o, y){
+  $("#gtabs").addEventListener("click", e=>{
+    const a=e.target.closest("a"); if(!a) return; e.preventDefault();
+    paperGrade=+a.dataset.g;
+    $("#gtabs").querySelectorAll("a").forEach(x=>x.classList.toggle("on",x===a));
+    renderTours(o,y);
+  });
+  renderTours(o,y);
 }
 
 const F = {q:"", olymp:"", grade:"", topic:""};
@@ -823,7 +873,7 @@ function resTable(oid, year){
   </table>
   <p class="note">${demo?"Пример таблицы с выдуманными участниками. Реальные результаты возьмём из официальных протоколов.":src?`Источник: <a href="${src}" style="text-decoration:underline">официальный протокол</a>`:""}</p>`;
 }
-const YEARS = [2025,2024,2023,2022,2021];
+
 function tabResults(s){
   const gs = OLYMPIADS[s.id];
   if(!gs) return soon("Скоро", `Результаты по предмету «${s.t}» в процессе наполнения.`);
@@ -849,25 +899,21 @@ function viewResultsSubj(s){
     <h1>${s.t}</h1><p class="sub">Результаты олимпиад по предмету</p></div></section>
   <div class="wrap body">${body}</div>`;
 }
-let resYear = YEARS[0];
+let resYear = null;
 function viewResultsOlymp(o){
+  if(!resYear || !seasonsOf(o).includes(resYear)) resYear = seasonsOf(o)[0];
   const sid = Object.keys(OLYMPIADS).find(k=>OLYMPIADS[k].some(g=>g.items.includes(o)));
   const s = subjById(sid);
   return `<section class="dark"><div class="wrap shead" style="padding-bottom:0">
     <div class="crumbs"><a href="#home">Главная</a> &nbsp;/&nbsp; <a href="#results">Результаты</a> &nbsp;/&nbsp; <a href="#results-${s.id}">${s.t}</a></div>
     <h1 style="font-size:52px">${o.t}</h1><p class="sub">${s.t} · ${o.resNote||o.lv}</p>
-    <nav class="tabs" id="ytabs">${YEARS.map(y=>`<a href="javascript:void 0" data-y="${y}" class="${y===resYear?'on':''}">${y}</a>`).join("")}</nav>
+    <div style="max-width:260px;margin:28px 0 40px"><select id="ysel">${seasonsOf(o).map(y=>`<option value="${y}" ${y===resYear?"selected":""}>Сезон ${seasonLabel(y)}</option>`).join("")}</select></div>
   </div></section>
   <div class="wrap body"><div id="rtable">${resTable(o.id,resYear)}</div>
   <div style="margin-top:32px"><a class="btn ghost" href="#${o.id}">Задания и решения этой олимпиады →</a></div></div>`;
 }
 function bindResultsOlymp(o){
-  $("#ytabs").addEventListener("click", e=>{
-    const a=e.target.closest("a"); if(!a) return; e.preventDefault();
-    resYear=+a.dataset.y;
-    $("#ytabs").querySelectorAll("a").forEach(x=>x.classList.toggle("on",x===a));
-    $("#rtable").innerHTML = resTable(o.id,resYear);
-  });
+  $("#ysel").addEventListener("change", e=>{ resYear=e.target.value; $("#rtable").innerHTML = resTable(o.id,resYear); });
 }
 function tabMaterials(s){
   const m = MATERIALS[s.id];
@@ -1102,6 +1148,8 @@ function route(){
   let nav = "";
   const p = PROBLEMS.find(x=>x.id===h);
   const o = ALL_OLYMP.find(x=>x.id===h);
+  const ym = h.match(/^(.+)-(\d{4}-\d{4})$/);
+  const oy = ym && ALL_OLYMP.find(x=>x.id===ym[1]) ? {o:ALL_OLYMP.find(x=>x.id===ym[1]), y:ym[2]} : null;
   const m = h.match(/^([a-z]+?)(?:-(topics|results|materials))?$/);
   const s = m && subjById(m[1]);
   const ro = h.startsWith("res-") && ALL_OLYMP.find(x=>"res-"+x.id===h);
@@ -1111,6 +1159,7 @@ function route(){
   else if(ro){ app.innerHTML = viewResultsOlymp(ro); bindResultsOlymp(ro); nav="results"; }
   else if(p){ app.innerHTML = viewProblem(p); bindProblem(p); nav="subjects"; }
   else if(o){ app.innerHTML = viewOlympiad(o); nav="subjects"; }
+  else if(oy){ app.innerHTML = viewOlympYear(oy.o, oy.y); bindOlympYear(oy.o, oy.y); nav="subjects"; }
   else if(s){
     const tab = m[2] || "";
     const body = tab==="topics"?tabTopics(s):tab==="results"?tabResults(s):tab==="materials"?tabMaterials(s):tabOlympiads(s);
